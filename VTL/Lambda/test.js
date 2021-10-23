@@ -1,0 +1,34 @@
+const APP_SYNC_ENDPOINT_URL = "";
+const API_KEY = "";
+
+/**
+ *
+ * @param {string} query
+ * @param {Record<string, unknown> | undefined} variables
+ * @returns
+ */
+const execute = async (query, variables) => {
+  const response = await fetch(APP_SYNC_ENDPOINT_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/graphql",
+      "x-api-key": API_KEY,
+    },
+    body: JSON.stringify({
+      query,
+      variables,
+    }),
+  });
+  return response.ok ? response.json() : response.statusText;
+};
+
+(async () => {
+  console.log(
+    await execute(`
+    query invokeFunction {
+      invokeFunction(id: "1",name: "Test"){
+          message
+      }
+  }`)
+  );
+})().catch(console.error);
