@@ -33,24 +33,90 @@ Resources:
       DefinitionS3Location: schema.graphql
 
   #DataSource
-  LambdaDataSource:
+  ValidateEmailLambdaDataSource:
     Type: AWS::AppSync::DataSource
     Properties:
       ApiId: !GetAtt GraphQLApi.ApiId
-      Name: LambdaDataSource
+      Name: ValidateEmailLambdaDataSource
       Type: AWS_LAMBDA
       ServiceRoleArn: !GetAtt AppSyncServiceRole.Arn
       LambdaConfig:
-        LambdaFunctionArn: !Sub ${TargetLambda.Arn}
+        LambdaFunctionArn: !Sub ${ValidateEmailLambda.Arn}
+
+  SaveUserLambdaDataSource:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId: !GetAtt GraphQLApi.ApiId
+      Name: SaveUserLambdaDataSource
+      Type: AWS_LAMBDA
+      ServiceRoleArn: !GetAtt AppSyncServiceRole.Arn
+      LambdaConfig:
+        LambdaFunctionArn: !Sub ${SaveUserLambda.Arn}
 
   #Resolver
   LambdaResolver:
     Type: AWS::AppSync::Resolver
     Properties:
       ApiId: !GetAtt GraphQLApi.ApiId
-      TypeName: Query
-      FieldName: invokeFunction
-      DataSourceName: !GetAtt LambdaDataSource.Name
+      TypeName: Mutation
+      FieldName: signUp
+      Kind: PIPELINE
+      PipelineConfig:
+        Functions:
+          - !Sub ${ValidateEmailLambdaConfiguration.FunctionId}
+          - !Sub ${SaveUserFunctionConfiguration.FunctionId}
+      Runtime:
+        Name: "APPSYNC_JS"
+        RuntimeVersion: "1.0.0"
+      Code: |-
+        export function request(ctx) {
+          return {};
+        }
+
+        export function response(ctx) {
+          return ctx.prev.result;
+        }
+
+  ValidateEmailLambdaConfiguration:
+    Type: AWS::AppSync::FunctionConfiguration
+    Properties:
+      ApiId: !GetAtt GraphQLApi.ApiId
+      Name: ValidateEmailLambdaConfiguration
+      DataSourceName: !GetAtt ValidateEmailLambdaDataSource.Name
+      FunctionVersion: "2018-05-29"
+      Runtime:
+        Name: "APPSYNC_JS"
+        RuntimeVersion: "1.0.0"
+      Code: |-
+        import { util } from "@aws-appsync/utils";
+
+        export function request(ctx) {
+          const { source, args } = ctx;
+          return {
+            operation: "Invoke",
+            payload: { field: ctx.info.fieldName, arguments: args, source },
+          };
+        }
+
+        export const response = (ctx) => {
+          if(ctx.error){
+            util.error(
+              "Invalid email",
+              "InvalidEmailErrorType",
+              null,
+              { status: 400 }
+            );
+          }
+          return ctx.result;
+        }
+
+  SaveUserFunctionConfiguration:
+    Type: AWS::AppSync::FunctionConfiguration
+    Properties:
+      ApiId: !GetAtt GraphQLApi.ApiId
+      Name: SaveUserFunctionConfiguration
+      DataSourceName: !GetAtt SaveUserLambdaDataSource.Name
+      FunctionVersion: "2018-05-29"
       Runtime:
         Name: "APPSYNC_JS"
         RuntimeVersion: "1.0.0"
@@ -82,16 +148,8 @@ Resources:
             Principal:
               Service:
                 - appsync.amazonaws.com
-      Policies:
-        - PolicyName: proxy-policy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - lambda:InvokeFunction
-                  - logs:*
-                Resource: "*"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
       Path: /
       RoleName: !Sub ${ProjectPrefix}AppSyncServiceRole
 
@@ -121,20 +179,40 @@ Resources:
     Properties:
       LogGroupName: !Sub /aws/appsync/apis/${GraphQLApi.ApiId}
 
-  TargetLambdaLogGroup:
+  ValidateEmailLambdaLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/lambda/${TargetLambda}
+      LogGroupName: !Sub /aws/lambda/${ValidateEmailLambda}
+
+  SaveUserLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${SaveUserLambda}
 
   #-------------------------------------------------------
   # Lambda
   #-------------------------------------------------------
-  TargetLambda:
+  ValidateEmailLambda:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: Lambda/lambda_function
-      FunctionName: !Sub ${ProjectPrefix}TargetLambda
-      Handler: lambda_function.lambda_handler
+      CodeUri: Lambda
+      FunctionName: !Sub ${ProjectPrefix}ValidateEmailLambda
+      Handler: validate_email.lambda_handler
+      MemorySize: 128
+      Role: !Sub ${LambdaRole.Arn}
+      Runtime: python3.12
+      Timeout: 29
+      Tracing: Active
+      Environment:
+        Variables:
+          LOG_LEVEL: DEBUG
+
+  SaveUserLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: Lambda
+      FunctionName: !Sub ${ProjectPrefix}SaveUserLambda
+      Handler: save_user.lambda_handler
       MemorySize: 128
       Role: !Sub ${LambdaRole.Arn}
       Runtime: python3.12

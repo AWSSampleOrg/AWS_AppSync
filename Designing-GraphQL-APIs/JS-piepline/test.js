@@ -25,25 +25,24 @@ const execute = async (query, variables) => {
 };
 
 (async () => {
+  const SIGNUP_MUTATION = `
+  mutation signUp($email: String!, $username: String!) {
+    signUp(input: {email: $email, username: $username}) {
+      id
+      email
+      username
+    }
+  }`;
   console.log(
-    await execute(`
-      mutation put{
-        put_item( id: "1",name: "Test",age: 100 ){
-          id,
-          name,
-          age
-        }
-      }`)
+    await execute(SIGNUP_MUTATION, {
+      email: "nadia@myvaliddomain.com",
+      username: "nadia",
+    })
   );
   console.log(
-    await execute(`
-    query get_item{
-      get_item(id: "1"){
-        id,
-        name,
-        age
-      }
-    } 
-    `)
+    await execute(SIGNUP_MUTATION, {
+      email: "nadia@invalid.com",
+      username: "nadia",
+    })
   );
 })().catch(console.error);

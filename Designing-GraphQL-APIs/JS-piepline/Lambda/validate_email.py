@@ -9,4 +9,7 @@ logger.setLevel(os.getenv("LOG_LEVEL", logging.DEBUG))
 
 def lambda_handler(event,context):
     logger.info(json.dumps(event))
-    return json.dumps({"message" : "OK"})
+    email: str = event["arguments"]["input"]["email"]
+    if email.endswith("@myvaliddomain.com"):
+        return
+    raise Exception(f"{email} is not a valid email.")

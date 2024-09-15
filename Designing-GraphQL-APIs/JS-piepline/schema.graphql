@@ -1,0 +1,23 @@
+schema {
+  query: Query
+  mutation: Mutation
+}
+
+type Mutation {
+  signUp(input: Signup): User
+}
+
+type Query {
+  getUser(id: ID!): User
+}
+
+input Signup {
+  username: String!
+  email: String!
+}
+
+type User {
+  id: ID!
+  username: String
+  email: AWSEmail
+}

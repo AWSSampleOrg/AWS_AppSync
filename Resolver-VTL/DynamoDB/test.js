@@ -19,7 +19,9 @@ const execute = async (query, variables) => {
       variables,
     }),
   });
-  return response.ok ? response.json() : response.statusText;
+  return response.ok
+    ? JSON.stringify(await response.json(), null, 2)
+    : response.statusText;
 };
 
 (async () => {
